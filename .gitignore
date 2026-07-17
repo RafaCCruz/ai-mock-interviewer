@@ -1,0 +1,28 @@
+# Dependências do Node (Frontend)
+node_modules/
+.pnp
+.pnp.js
+
+# Ambientes virtuais e pacotes Python (Backend)
+venv/
+env/
+__pycache__/
+*.pyc
+
+# Variáveis de Ambiente (O MAIS IMPORTANTE)
+.env
+.env.local
+.env.*.local
+
+# Logs e builds
+logs
+*.log
+npm-debug.log*
+.next/
+out/
+build/
+dist/
+
+# OS e Editor de Código
+.DS_Store
+.vscode/
