@@ -20,7 +20,7 @@ app = FastAPI(title="AI Mock Interviewer API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://ai-mock-interviewer-teal.vercel.app"],
+    allow_origins=["*"],  # Permite acesso de qualquer site
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
