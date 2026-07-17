@@ -29,6 +29,29 @@ async def transcribe_audio(file: UploadFile = File(...)):
     if not file.content_type.startswith("audio/"):
         raise HTTPException(status_code=400, detail="O arquivo enviado não é um áudio válido.")
 
+    audio_bytes = await file.read()
+    
+    # AJUSTE 1: Passamos o content_type (ex: audio/webm) explicitamente para a Groq
+    audio_file_tuple = ("audio.webm", audio_bytes, file.content_type)
+
+    try:
+        response = await client.audio.transcriptions.create(
+            model="whisper-large-v3",
+            file=audio_file_tuple,
+            language="pt",
+            # AJUSTE 2: Damos um contexto para a IA focar no português formal e não alucinar
+            prompt="Transcrição de uma entrevista de emprego em português do Brasil. O candidato responde de forma clara."
+        )
+        
+        # AJUSTE 3: Limpeza de espaços em branco vazios
+        transcription_text = response.text.strip()
+        
+        return {"transcription": transcription_text}
+
+    except Exception as e:
+        print(f"Erro na Groq: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao processar o áudio na IA.")
+
     # Lemos o arquivo para a memória
     audio_bytes = await file.read()
     
