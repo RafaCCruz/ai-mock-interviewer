@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import Link from "next/link";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 
 export default function Home() {
@@ -89,6 +90,14 @@ export default function Home() {
       <div className="bg-white p-8 rounded-2xl shadow-lg flex flex-col items-center gap-6 max-w-2xl w-full">
         <h1 className="text-3xl font-bold text-gray-800">Mock Interviewer AI</h1>
         
+        {/* --- NOVO: BOTÃO PARA O HISTÓRICO --- */}
+        <Link 
+          href="/historico" 
+          className="text-sm font-semibold text-blue-600 hover:text-blue-800 underline underline-offset-4 transition-colors"
+        >
+          Ver meu histórico de entrevistas
+        </Link>
+        
         <div className="w-full max-w-xs flex flex-col items-center gap-2">
           <label htmlFor="jobRole" className="text-sm font-semibold text-gray-600">
             Qual vaga você está aplicando?
@@ -116,7 +125,7 @@ export default function Home() {
           {isRecording ? "⏹ Encerrar Resposta" : "⏺ Responder (Áudio)"}
         </button>
 
-        {/* --- NOVO: ANIMAÇÃO DE ONDAS DE ÁUDIO --- */}
+        {/* --- ANIMAÇÃO DE ONDAS DE ÁUDIO --- */}
         {isRecording && (
           <div className="flex justify-center items-end gap-1.5 h-10 mt-2">
             {[0, 0.2, 0.4, 0.15, 0.3, 0.5, 0.25, 0.1, 0.45].map((delay, index) => (
@@ -124,7 +133,6 @@ export default function Home() {
                 key={index}
                 className="w-2 bg-red-500 rounded-full animate-pulse"
                 style={{
-                  // Brincamos com alturas diferentes para parecer uma onda real
                   height: ["40%", "80%", "100%", "60%", "90%", "50%", "75%", "45%", "85%"][index],
                   animationDelay: `${delay}s`,
                   animationDuration: "0.8s"
