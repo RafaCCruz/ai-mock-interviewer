@@ -130,3 +130,17 @@ async def text_to_speech(request: TTSRequest):
     except Exception as e:
         print(f"Erro no TTS: {e}")
         raise HTTPException(status_code=500, detail="Erro ao gerar áudio da IA.")
+    
+    # --- 4. ENDPOINT DE HISTÓRICO (PostgreSQL) ---
+@app.get("/api/interview/history")
+async def get_interview_history(db: Session = Depends(get_db)):
+    """
+    Busca todas as conversas salvas no banco de dados,
+    ordenadas da mais recente para a mais antiga.
+    """
+    try:
+        historico = db.query(InterviewTurn).order_by(InterviewTurn.id.desc()).all()
+        return historico
+    except Exception as e:
+        print(f"Erro ao buscar histórico: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao buscar o histórico de entrevistas.")
