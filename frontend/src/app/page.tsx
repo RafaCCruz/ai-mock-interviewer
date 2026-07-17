@@ -6,91 +6,120 @@ import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 export default function Home() {
   const { isRecording, audioUrl, audioBlob, startRecording, stopRecording } = useAudioRecorder();
   
-  // Novos estados para controlarmos a tela de carregamento e o texto final
   const [transcription, setTranscription] = useState<string | null>(null);
-  const [isTranscribing, setIsTranscribing] = useState(false);
+  
+  // NOVOS ESTADOS: Para guardar a resposta da IA
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [nextQuestion, setNextQuestion] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  // Fica "vigiando" o audioBlob. Toda vez que ele muda (ou seja, quando paramos de gravar), roda esse código
   useEffect(() => {
-    const sendAudioForTranscription = async () => {
-      // Se não tiver áudio, não faz nada
+    const processInterview = async () => {
       if (!audioBlob) return;
 
-      setIsTranscribing(true);
+      setIsProcessing(true);
       setTranscription(null);
+      setFeedback(null);
+      setNextQuestion(null);
 
-      // Preparamos o arquivo para envio, imitando um formulário HTML
+      // --- PASSO 1: Transcrição (Whisper) ---
       const formData = new FormData();
-      // O nome do campo "file" deve ser exato ao que configuramos no backend (FastAPI)
       formData.append("file", audioBlob, "audio.webm");
 
       try {
-        // Faz a chamada para a nossa API Python
-        const response = await fetch("http://localhost:8000/api/audio/transcribe", {
+        const transcribeRes = await fetch("http://localhost:8000/api/audio/transcribe", {
           method: "POST",
           body: formData,
         });
 
-        if (!response.ok) {
-          throw new Error("Erro na comunicação com o backend");
-        }
+        if (!transcribeRes.ok) throw new Error("Erro na transcrição");
+        const transcribeData = await transcribeRes.json();
+        const userText = transcribeData.transcription;
+        setTranscription(userText);
 
-        // Recebe o JSON de volta e salva o texto
-        const data = await response.json();
-        setTranscription(data.transcription);
+        // --- PASSO 2: Avaliação da IA (LLaMA) ---
+        // Agora fazemos uma SEGUNDA chamada pro backend, enviando o texto para ser analisado
+        const analyzeRes = await fetch("http://localhost:8000/api/interview/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            transcription: userText,
+            job_role: "Desenvolvedor Front-end" // Fixo por enquanto
+          }),
+        });
+
+        if (!analyzeRes.ok) throw new Error("Erro na análise");
+        const analyzeData = await analyzeRes.json();
+        
+        // Salvamos o feedback e a nova pergunta no estado para aparecer na tela
+        setFeedback(analyzeData.feedback);
+        setNextQuestion(analyzeData.next_question);
+
       } catch (error) {
-        console.error("Erro ao enviar áudio:", error);
-        setTranscription("❌ Ocorreu um erro ao tentar transcrever o áudio.");
+        console.error("Erro no fluxo da entrevista:", error);
+        setTranscription("❌ Ocorreu um erro no processamento.");
       } finally {
-        setIsTranscribing(false);
+        setIsProcessing(false);
       }
     };
 
-    sendAudioForTranscription();
+    processInterview();
   }, [audioBlob]);
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-24 bg-gray-50">
-      <div className="bg-white p-8 rounded-2xl shadow-lg flex flex-col items-center gap-6 max-w-md w-full">
-        <h1 className="text-2xl font-bold text-gray-800">Mock Interviewer</h1>
+    <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gray-50">
+      <div className="bg-white p-8 rounded-2xl shadow-lg flex flex-col items-center gap-6 max-w-2xl w-full">
+        <h1 className="text-3xl font-bold text-gray-800">Mock Interviewer AI</h1>
         
-        <p className="text-gray-600 text-center text-sm">
-          Grave sua resposta para analisarmos.
+        <p className="text-gray-600 text-center">
+          Vaga: <span className="font-semibold text-blue-600">Desenvolvedor Front-end</span>
         </p>
 
         <button
           onClick={isRecording ? stopRecording : startRecording}
-          disabled={isTranscribing}
-          className={`px-6 py-3 rounded-full font-semibold text-white transition-all w-full flex justify-center items-center gap-2 ${
+          disabled={isProcessing}
+          className={`px-8 py-4 rounded-full font-bold text-white transition-all w-full max-w-xs flex justify-center items-center gap-2 shadow-md ${
             isRecording 
               ? "bg-red-500 hover:bg-red-600 animate-pulse" 
               : "bg-blue-600 hover:bg-blue-700"
-          } ${isTranscribing ? "opacity-50 cursor-not-allowed" : ""}`}
+          } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
         >
-          {isRecording ? "⏹ Parar Gravação" : "⏺ Iniciar Gravação"}
+          {isRecording ? "⏹ Encerrar Resposta" : "⏺ Responder (Áudio)"}
         </button>
 
-        {audioUrl && (
-          <div className="w-full flex flex-col items-center gap-2 mt-4">
-            <audio src={audioUrl} controls className="w-full h-10" />
+        {/* LOADING STATE */}
+        {isProcessing && (
+          <div className="flex items-center gap-2 text-blue-600 font-medium mt-4 animate-pulse">
+            <span>⏳ A IA está ouvindo e pensando...</span>
           </div>
         )}
 
-        {/* Área para exibir o status ou a transcrição */}
-        <div className="w-full mt-2">
-          {isTranscribing && (
-            <div className="flex items-center justify-center gap-2 text-blue-600 font-medium">
-              <span className="animate-spin text-xl">⏳</span> Transcrevendo...
+        {/* FEEDBACK E PERGUNTA DA IA NA TELA */}
+        {!isProcessing && transcription && (
+          <div className="w-full mt-6 space-y-4">
+            {/* O que você disse */}
+            <div className="bg-gray-100 p-4 rounded-lg border border-gray-200">
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Sua Resposta (Transcrição):</span>
+              <p className="text-gray-800">{transcription}</p>
             </div>
-          )}
-          
-          {transcription && !isTranscribing && (
-            <div className="bg-gray-100 p-4 rounded-lg w-full text-sm text-gray-700 mt-2">
-              <strong className="block text-gray-900 mb-1">Você disse:</strong>
-              {transcription}
-            </div>
-          )}
-        </div>
+
+            {/* Avaliação do Recrutador */}
+            {feedback && (
+              <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                <span className="text-xs font-bold text-green-700 uppercase tracking-wider mb-1 block">Feedback do Recrutador:</span>
+                <p className="text-green-900">{feedback}</p>
+              </div>
+            )}
+
+            {/* Próxima Pergunta */}
+            {nextQuestion && (
+              <div className="bg-blue-50 p-5 rounded-xl border-2 border-blue-200 shadow-sm mt-6">
+                <span className="text-xs font-bold text-blue-700 uppercase tracking-wider mb-1 block">Próxima Pergunta:</span>
+                <p className="text-blue-900 font-semibold text-lg">{nextQuestion}</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </main>
   );
