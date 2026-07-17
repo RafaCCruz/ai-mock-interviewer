@@ -6,7 +6,6 @@ import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 export default function Home() {
   const { isRecording, audioBlob, startRecording, stopRecording } = useAudioRecorder();
   
-  // NOVO ESTADO: Guarda a vaga que o usuário digitar
   const [jobRole, setJobRole] = useState("Desenvolvedor Front-end");
   
   const [transcription, setTranscription] = useState<string | null>(null);
@@ -46,7 +45,6 @@ export default function Home() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
             transcription: userText,
-            // AJUSTE AQUI: Agora enviamos o estado dinâmico em vez do texto fixo!
             job_role: jobRole 
           }),
         });
@@ -82,7 +80,7 @@ export default function Home() {
 
   useEffect(() => {
     if (aiAudioUrl && audioPlayerRef.current) {
-      audioPlayerRef.current.play().catch(e => console.log("Autoplay bloqueado pelo navegador", e));
+      audioPlayerRef.current.play().catch(e => console.log("Autoplay bloqueado", e));
     }
   }, [aiAudioUrl]);
 
@@ -91,7 +89,6 @@ export default function Home() {
       <div className="bg-white p-8 rounded-2xl shadow-lg flex flex-col items-center gap-6 max-w-2xl w-full">
         <h1 className="text-3xl font-bold text-gray-800">Mock Interviewer AI</h1>
         
-        {/* NOVO CAMPO DE INPUT DA VAGA */}
         <div className="w-full max-w-xs flex flex-col items-center gap-2">
           <label htmlFor="jobRole" className="text-sm font-semibold text-gray-600">
             Qual vaga você está aplicando?
@@ -112,12 +109,30 @@ export default function Home() {
           disabled={isProcessing}
           className={`px-8 py-4 rounded-full font-bold text-white transition-all w-full max-w-xs flex justify-center items-center gap-2 shadow-md mt-2 ${
             isRecording 
-              ? "bg-red-500 hover:bg-red-600 animate-pulse" 
+              ? "bg-red-500 hover:bg-red-600 shadow-red-200" 
               : "bg-blue-600 hover:bg-blue-700"
           } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
         >
           {isRecording ? "⏹ Encerrar Resposta" : "⏺ Responder (Áudio)"}
         </button>
+
+        {/* --- NOVO: ANIMAÇÃO DE ONDAS DE ÁUDIO --- */}
+        {isRecording && (
+          <div className="flex justify-center items-end gap-1.5 h-10 mt-2">
+            {[0, 0.2, 0.4, 0.15, 0.3, 0.5, 0.25, 0.1, 0.45].map((delay, index) => (
+              <div
+                key={index}
+                className="w-2 bg-red-500 rounded-full animate-pulse"
+                style={{
+                  // Brincamos com alturas diferentes para parecer uma onda real
+                  height: ["40%", "80%", "100%", "60%", "90%", "50%", "75%", "45%", "85%"][index],
+                  animationDelay: `${delay}s`,
+                  animationDuration: "0.8s"
+                }}
+              />
+            ))}
+          </div>
+        )}
 
         {isProcessing && (
           <div className="flex items-center gap-2 text-blue-600 font-medium mt-4 animate-pulse">
