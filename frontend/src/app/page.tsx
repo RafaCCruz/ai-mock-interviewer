@@ -31,7 +31,7 @@ export default function Home() {
         const formData = new FormData();
         formData.append("file", audioBlob, "audio.webm");
 
-        const transcribeRes = await fetch("http://localhost:8000/api/audio/transcribe", {
+        const transcribeRes = await fetch("https://mock-interviewer-backend-wxdn.onrender.com/api/audio/transcribe", {
           method: "POST",
           body: formData,
         });
@@ -41,7 +41,7 @@ export default function Home() {
         const userText = transcribeData.transcription;
         setTranscription(userText);
 
-        const analyzeRes = await fetch("http://localhost:8000/api/interview/analyze", {
+        const analyzeRes = await fetch("https://mock-interviewer-backend-wxdn.onrender.com/api/interview/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
@@ -56,7 +56,7 @@ export default function Home() {
         setFeedback(analyzeData.feedback);
         setNextQuestion(analyzeData.next_question);
 
-        const ttsRes = await fetch("http://localhost:8000/api/audio/tts", {
+        const ttsRes = await fetch("https://mock-interviewer-backend-wxdn.onrender.com/api/audio/tts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text: analyzeData.next_question }),

@@ -19,7 +19,7 @@ export default function HistoryPage() {
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const response = await fetch("http://localhost:8000/api/interview/history");
+        const response = await fetch("https://mock-interviewer-backend-wxdn.onrender.com/api/interview/history");
         if (!response.ok) throw new Error("Falha ao carregar histórico");
         const data = await response.json();
         setHistory(data);
