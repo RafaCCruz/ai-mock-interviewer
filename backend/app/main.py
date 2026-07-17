@@ -1,13 +1,18 @@
 import os
-import tempfile # <-- NOVO
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import FileResponse # <-- NOVO
-from starlette.background import BackgroundTask # <-- NOVO
+import tempfile
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
+from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from groq import AsyncGroq
 from dotenv import load_dotenv
-import edge_tts # <-- NOVO
+import edge_tts
+
+# Imports do banco de dados
+from sqlalchemy.orm import Session
+from app.database import get_db
+from app.models import InterviewTurn
 
 load_dotenv()
 
@@ -23,15 +28,17 @@ app.add_middleware(
 
 client = AsyncGroq(api_key=os.getenv("GROQ_API_KEY"))
 
-# --- NOVA ESTRUTURA DE DADOS ---
-# Define exatamente o que o backend espera receber do frontend
+# --- MODELOS DE DADOS ---
 class AnswerRequest(BaseModel):
     transcription: str
-    job_role: str = "Desenvolvedor Front-end" # Vamos deixar um valor padrão por enquanto
+    job_role: str = "Desenvolvedor Front-end"
 
+class TTSRequest(BaseModel):
+    text: str
+
+# --- 1. ENDPOINT DE TRANSCRIÇÃO (Whisper) ---
 @app.post("/api/audio/transcribe")
 async def transcribe_audio(file: UploadFile = File(...)):
-    # ... (Mantenha o código de transcrição exatamente como estava, sem alterações)
     if not file.content_type.startswith("audio/"):
         raise HTTPException(status_code=400, detail="O arquivo enviado não é um áudio válido.")
 
@@ -51,12 +58,12 @@ async def transcribe_audio(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail="Erro ao processar o áudio na IA.")
 
 
-# --- NOVO ENDPOINT DE ANÁLISE ---
+# --- 2. ENDPOINT DE ANÁLISE (LLaMA + PostgreSQL) ---
 @app.post("/api/interview/analyze")
-async def analyze_answer(request: AnswerRequest):
-    """
-    Recebe a transcrição, envia para o LLaMA 3 atuar como recrutador e devolve feedback + nova pergunta.
-    """
+async def analyze_answer(
+    request: AnswerRequest, 
+    db: Session = Depends(get_db)
+):
     system_prompt = f"""
     Você é um recrutador técnico sênior conduzindo uma entrevista para a vaga de {request.job_role}.
     Sua tarefa é avaliar a última resposta do candidato.
@@ -72,18 +79,25 @@ async def analyze_answer(request: AnswerRequest):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": request.transcription}
             ],
-            model="llama-3.3-70b-versatile", # Modelo super inteligente da Groq
-            temperature=0.7, # 0.7 dá um equilíbrio bom entre criatividade e foco
+            model="llama-3.3-70b-versatile",
+            temperature=0.7,
             max_tokens=300
         )
 
-        # Pegamos a resposta bruta da IA
         ia_response = chat_completion.choices[0].message.content
-
-        # Separamos o Feedback da Pergunta usando o caractere | que pedimos no prompt
         parts = ia_response.split("|")
         feedback = parts[0].strip() if len(parts) > 0 else "Não consegui gerar um feedback."
         next_question = parts[1].strip() if len(parts) > 1 else "Pode me falar mais sobre sua experiência?"
+
+        # Salva no Banco de Dados
+        novo_turno = InterviewTurn(
+            job_role=request.job_role,
+            user_transcription=request.transcription,
+            ai_feedback=feedback,
+            ai_next_question=next_question
+        )
+        db.add(novo_turno) 
+        db.commit()        
 
         return {
             "feedback": feedback,
@@ -91,33 +105,23 @@ async def analyze_answer(request: AnswerRequest):
         }
 
     except Exception as e:
-        print(f"Erro no LLaMA: {e}")
-        raise HTTPException(status_code=500, detail="Erro ao analisar a resposta.")
-    
-    # --- NOVO ENDPOINT: TEXT-TO-SPEECH (TTS) ---
+        print(f"Erro no LLaMA ou Banco: {e}")
+        db.rollback() 
+        raise HTTPException(status_code=500, detail="Erro ao analisar a resposta ou salvar histórico.")
 
-class TTSRequest(BaseModel):
-    text: str
 
+# --- 3. ENDPOINT DE VOZ (Text-to-Speech) ---
 @app.post("/api/audio/tts")
 async def text_to_speech(request: TTSRequest):
-    """
-    Recebe um texto e transforma em áudio usando vozes neurais da Microsoft.
-    """
     try:
-        # Escolhemos uma voz brasileira realista (Francisca ou Antonio)
         voice = "pt-BR-FranciscaNeural" 
         communicate = edge_tts.Communicate(request.text, voice)
         
-        # Criamos um arquivo temporário no sistema para salvar o mp3
         temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-        temp_file.close() # Fechamos para que o edge_tts possa escrever nele
+        temp_file.close() 
         
-        # Gera e salva o áudio no arquivo
         await communicate.save(temp_file.name)
         
-        # Retornamos o arquivo de áudio para o frontend.
-        # O BackgroundTask garante que o arquivo seja apagado do seu HD após o envio.
         return FileResponse(
             path=temp_file.name, 
             media_type="audio/mpeg",
