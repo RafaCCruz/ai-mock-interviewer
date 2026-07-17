@@ -1,17 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 
 export default function Home() {
-  const { isRecording, audioUrl, audioBlob, startRecording, stopRecording } = useAudioRecorder();
+  const { isRecording, audioBlob, startRecording, stopRecording } = useAudioRecorder();
   
   const [transcription, setTranscription] = useState<string | null>(null);
-  
-  // NOVOS ESTADOS: Para guardar a resposta da IA
   const [feedback, setFeedback] = useState<string | null>(null);
   const [nextQuestion, setNextQuestion] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // NOVO ESTADO: Guarda o link do áudio da IA para tocarmos
+  const [aiAudioUrl, setAiAudioUrl] = useState<string | null>(null);
+  
+  // Usamos useRef para acessar o player de áudio HTML e dar play automático
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     const processInterview = async () => {
@@ -21,12 +25,13 @@ export default function Home() {
       setTranscription(null);
       setFeedback(null);
       setNextQuestion(null);
-
-      // --- PASSO 1: Transcrição (Whisper) ---
-      const formData = new FormData();
-      formData.append("file", audioBlob, "audio.webm");
+      setAiAudioUrl(null); // Limpa o áudio anterior
 
       try {
+        // --- PASSO 1: Transcrição (Whisper/Groq) ---
+        const formData = new FormData();
+        formData.append("file", audioBlob, "audio.webm");
+
         const transcribeRes = await fetch("http://localhost:8000/api/audio/transcribe", {
           method: "POST",
           body: formData,
@@ -37,27 +42,40 @@ export default function Home() {
         const userText = transcribeData.transcription;
         setTranscription(userText);
 
-        // --- PASSO 2: Avaliação da IA (LLaMA) ---
-        // Agora fazemos uma SEGUNDA chamada pro backend, enviando o texto para ser analisado
+        // --- PASSO 2: Avaliação da IA (LLaMA 3.3) ---
         const analyzeRes = await fetch("http://localhost:8000/api/interview/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
             transcription: userText,
-            job_role: "Desenvolvedor Front-end" // Fixo por enquanto
+            job_role: "Desenvolvedor Front-end" 
           }),
         });
 
         if (!analyzeRes.ok) throw new Error("Erro na análise");
         const analyzeData = await analyzeRes.json();
         
-        // Salvamos o feedback e a nova pergunta no estado para aparecer na tela
         setFeedback(analyzeData.feedback);
         setNextQuestion(analyzeData.next_question);
 
+        // --- PASSO 3: Geração de Voz (TTS) ---
+        // Pegamos a "next_question" gerada no Passo 2 e mandamos para virar áudio
+        const ttsRes = await fetch("http://localhost:8000/api/audio/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: analyzeData.next_question }),
+        });
+
+        if (!ttsRes.ok) throw new Error("Erro ao gerar áudio");
+        
+        // Transformamos a resposta bruta em um arquivo tocável no navegador
+        const audioBlobResult = await ttsRes.blob();
+        const url = URL.createObjectURL(audioBlobResult);
+        setAiAudioUrl(url);
+
       } catch (error) {
         console.error("Erro no fluxo da entrevista:", error);
-        setTranscription("❌ Ocorreu um erro no processamento.");
+        setTranscription("❌ Ocorreu um erro no processamento. Tente novamente.");
       } finally {
         setIsProcessing(false);
       }
@@ -65,6 +83,13 @@ export default function Home() {
 
     processInterview();
   }, [audioBlob]);
+
+  // NOVO EFEITO: Toca o áudio automaticamente assim que ele carregar na tela
+  useEffect(() => {
+    if (aiAudioUrl && audioPlayerRef.current) {
+      audioPlayerRef.current.play().catch(e => console.log("Autoplay bloqueado pelo navegador", e));
+    }
+  }, [aiAudioUrl]);
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gray-50">
@@ -87,35 +112,35 @@ export default function Home() {
           {isRecording ? "⏹ Encerrar Resposta" : "⏺ Responder (Áudio)"}
         </button>
 
-        {/* LOADING STATE */}
         {isProcessing && (
           <div className="flex items-center gap-2 text-blue-600 font-medium mt-4 animate-pulse">
-            <span>⏳ A IA está ouvindo e pensando...</span>
+            <span>⏳ A IA está ouvindo, pensando e preparando a voz...</span>
           </div>
         )}
 
-        {/* FEEDBACK E PERGUNTA DA IA NA TELA */}
         {!isProcessing && transcription && (
           <div className="w-full mt-6 space-y-4">
-            {/* O que você disse */}
             <div className="bg-gray-100 p-4 rounded-lg border border-gray-200">
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Sua Resposta (Transcrição):</span>
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Sua Resposta:</span>
               <p className="text-gray-800">{transcription}</p>
             </div>
 
-            {/* Avaliação do Recrutador */}
             {feedback && (
               <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                <span className="text-xs font-bold text-green-700 uppercase tracking-wider mb-1 block">Feedback do Recrutador:</span>
+                <span className="text-xs font-bold text-green-700 uppercase tracking-wider mb-1 block">Feedback:</span>
                 <p className="text-green-900">{feedback}</p>
               </div>
             )}
 
-            {/* Próxima Pergunta */}
             {nextQuestion && (
               <div className="bg-blue-50 p-5 rounded-xl border-2 border-blue-200 shadow-sm mt-6">
                 <span className="text-xs font-bold text-blue-700 uppercase tracking-wider mb-1 block">Próxima Pergunta:</span>
-                <p className="text-blue-900 font-semibold text-lg">{nextQuestion}</p>
+                <p className="text-blue-900 font-semibold text-lg mb-4">{nextQuestion}</p>
+                
+                {/* O PLAYER INVISÍVEL DA IA */}
+                {aiAudioUrl && (
+                  <audio ref={audioPlayerRef} src={aiAudioUrl} controls className="w-full h-10" />
+                )}
               </div>
             )}
           </div>
