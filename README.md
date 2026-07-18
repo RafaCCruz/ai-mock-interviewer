@@ -1,107 +1,77 @@
-# 🎙️ AI Mock Interviewer
+# AI Mock Interviewer
 
-<p align="center">
-  <strong>Simulador de entrevistas técnicas com feedback em tempo real, powered by IA.</strong>
-</p>
+Plataforma de simulação de entrevistas de emprego com feedback em tempo real gerado por IA. O candidato responde por voz, recebe avaliação e a próxima pergunta na sequência — tudo personalizado com base na vaga (link) e no currículo enviado.
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Next.js-16-black?logo=next.js" alt="Next.js" />
-  <img src="https://img.shields.io/badge/FastAPI-0.139-009688?logo=fastapi&logoColor=white" alt="FastAPI" />
-  <img src="https://img.shields.io/badge/Python-3.9+-3776AB?logo=python&logoColor=white" alt="Python" />
-  <img src="https://img.shields.io/badge/PostgreSQL-database-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL" />
-  <img src="https://img.shields.io/badge/Groq-Whisper%20%7C%20Llama%203.3-orange" alt="Groq" />
-  <img src="https://img.shields.io/badge/license-MIT-green" alt="License" />
-</p>
-
----
-
-## 📖 Sobre o projeto
-
-O **AI Mock Interviewer** é uma plataforma full-stack que simula entrevistas técnicas de emprego usando IA. O candidato responde perguntas **falando no microfone**, e a aplicação:
-
-1. Transcreve o áudio automaticamente (Speech-to-Text);
-2. Analisa a resposta com um modelo de linguagem, gerando feedback construtivo;
-3. Gera a próxima pergunta da entrevista, adaptada à vaga escolhida;
-4. Converte a pergunta em áudio (Text-to-Speech) para uma experiência conversacional;
-5. Salva cada turno da entrevista em banco de dados, com histórico consultável.
-
-O resultado é uma experiência de entrevista simulada, fluida e por voz — pensada para ajudar desenvolvedores a treinarem para processos seletivos reais.
+**Live demo:** [ai-mock-interviewer-teal.vercel.app](https://ai-mock-interviewer-teal.vercel.app)
 
 ---
 
 ## ✨ Funcionalidades
 
-- 🎤 **Entrevista por voz** — grave sua resposta direto do navegador (Web Audio API / `MediaRecorder`).
-- 📝 **Transcrição automática** via **Whisper Large v3** (Groq).
-- 🧠 **Feedback com IA** gerado por **Llama 3.3 70B**, atuando como um recrutador técnico sênior.
-- ❓ **Perguntas dinâmicas** — cada resposta gera a próxima pergunta, adaptada à vaga informada.
-- 🔊 **Voz da IA** — as perguntas são narradas em português (pt-BR) via **Edge TTS**.
-- 🗂️ **Histórico de entrevistas** — todas as interações são persistidas em PostgreSQL e podem ser revisitadas.
-- ⚡ **API assíncrona** construída com FastAPI + SQLAlchemy + Alembic (migrations).
+- **Autenticação de usuários** — cadastro e login com e-mail/senha (JWT), histórico isolado por conta.
+- **Entrevista por voz** — grave a resposta pelo microfone; transcrição automática via Whisper.
+- **Personalização por vaga e currículo** — cole o link da vaga (a descrição é extraída automaticamente) e envie seu currículo em PDF; a IA usa os dois para gerar perguntas e feedback específicos, para qualquer área (tecnologia, vendas, saúde, educação, etc.).
+- **Feedback com voz** — a próxima pergunta é sintetizada em áudio (text-to-speech) e tocada automaticamente.
+- **Sugestões de melhoria no currículo** — ao final, a IA compara o currículo com a vaga e aponta ajustes concretos (palavras-chave ausentes, experiências a destacar, pontos de clareza).
+- **Histórico de entrevistas** — cada resposta, feedback e pergunta ficam salvos e disponíveis por conta.
+
+---
+
+## 🛠️ Stack
+
+| Camada       | Tecnologia                                              |
+|--------------|----------------------------------------------------------|
+| Frontend     | Next.js (App Router), React, TypeScript, Tailwind CSS    |
+| Backend      | FastAPI (Python)                                          |
+| Banco        | PostgreSQL + SQLAlchemy + Alembic (migrações)             |
+| IA / NLP     | Groq API — Whisper (transcrição) e Llama 3.3 (análise)    |
+| Voz          | edge-tts (text-to-speech)                                  |
+| Autenticação | JWT (PyJWT) + bcrypt (passlib)                             |
+| Extração     | pypdf (currículo) e BeautifulSoup (descrição da vaga)      |
+| Hospedagem   | Vercel (frontend) + Render (backend e banco)                |
 
 ---
 
 ## 🏗️ Arquitetura
 
 ```
-ai-mock-interviewer/
-├── backend/                # API em FastAPI
-│   ├── app/
-│   │   ├── main.py         # Rotas: transcrição, análise, TTS, histórico
-│   │   ├── models.py       # Modelo SQLAlchemy (InterviewTurn)
-│   │   └── database.py     # Conexão e sessão com PostgreSQL
-│   ├── alembic/             # Migrations do banco de dados
-│   └── requirements.txt
-│
-└── frontend/                # Aplicação em Next.js
-    ├── src/app/
-    │   ├── page.tsx          # Tela principal da entrevista
-    │   └── historico/        # Tela de histórico
-    ├── src/hooks/
-    │   └── useAudioRecorder.ts  # Hook de gravação de áudio
-    └── package.json
+frontend/                    Next.js — UI, autenticação client-side, gravação de áudio
+  src/
+    app/
+      page.tsx                Landing pública + fluxo da entrevista (logado)
+      login/page.tsx          Login e criação de conta
+      historico/page.tsx      Histórico de entrevistas do usuário
+    context/AuthContext.tsx   Estado de autenticação (token JWT em localStorage)
+    hooks/useAudioRecorder.ts Gravação de áudio via MediaRecorder API
+
+backend/                     FastAPI — API REST
+  app/
+    main.py                  Rotas (auth, entrevista, currículo, áudio)
+    auth.py                  Hash de senha, criação/validação de JWT
+    document_parsing.py      Extração de texto de PDF e de páginas de vaga
+    models.py                Modelos SQLAlchemy (User, InterviewSession, InterviewTurn)
+    database.py              Conexão com PostgreSQL
+  alembic/                   Migrações de banco de dados
 ```
 
-### Fluxo da entrevista
+### Fluxo de uma entrevista
 
-```
-Usuário grava resposta (mic)
-        │
-        ▼
-POST /api/audio/transcribe   →  Whisper (Groq)  →  texto transcrito
-        │
-        ▼
-POST /api/interview/analyze  →  Llama 3.3 (Groq) →  feedback + próxima pergunta
-        │                                              │
-        │                                              ▼
-        │                                    salvo no PostgreSQL
-        ▼
-POST /api/audio/tts          →  Edge TTS  →  áudio da próxima pergunta
-```
+1. O usuário faz login (recebe um token JWT).
+2. `POST /api/interview/start` — cria uma `InterviewSession` com a vaga, o link (descrição extraída automaticamente) e o currículo (texto extraído do PDF); a IA gera a primeira pergunta com base nesse contexto.
+3. Para cada resposta gravada: `POST /api/audio/transcribe` → `POST /api/interview/analyze` (feedback + próxima pergunta, usando o contexto da sessão) → `POST /api/audio/tts` (áudio da próxima pergunta).
+4. `POST /api/resume/suggestions` — gera sugestões de melhoria do currículo com base na vaga, sob demanda.
+5. `GET /api/interview/history` — lista os turnos do usuário logado.
 
 ---
 
-## 🛠️ Tecnologias
-
-| Camada          | Tecnologias                                                              |
-|------------------|---------------------------------------------------------------------------|
-| **Frontend**     | Next.js 16, React 19, TypeScript, Tailwind CSS 4                          |
-| **Backend**      | FastAPI, Uvicorn, Pydantic                                                 |
-| **IA / NLP**     | Groq API — Whisper Large v3 (STT) e Llama 3.3 70B (análise/feedback)      |
-| **Text-to-Speech** | Edge TTS (voz `pt-BR-FranciscaNeural`)                                   |
-| **Banco de dados** | PostgreSQL + SQLAlchemy + Alembic (migrations)                          |
-| **Deploy**       | Vercel (frontend) e Render (backend)                                      |
-
----
-
-## 🚀 Como rodar o projeto localmente
+## 📋 Como rodar localmente
 
 ### Pré-requisitos
 
-- [Node.js](https://nodejs.org/) 18+
-- [Python](https://www.python.org/) 3.9+
-- PostgreSQL rodando localmente ou em nuvem (ex: [Neon](https://neon.tech/), [Render](https://render.com/))
-- Uma [chave de API da Groq](https://console.groq.com/keys)
+- Node.js 18+
+- Python 3.11+
+- PostgreSQL (local ou um banco gerenciado, ex: Render)
+- Conta na [Groq](https://console.groq.com/) para a API key
 
 ### 1. Clonar o repositório
 
@@ -110,102 +80,87 @@ git clone https://github.com/RafaCCruz/ai-mock-interviewer.git
 cd ai-mock-interviewer
 ```
 
-### 2. Configurar o Backend
+### 2. Backend
 
 ```bash
 cd backend
-python -m venv venv
-source venv/bin/activate      # Windows: venv\Scripts\activate
+python -m venv .venv
+.venv\Scripts\activate      # Windows
+# source .venv/bin/activate # macOS/Linux
 
 pip install -r requirements.txt
 ```
 
-Crie um arquivo `.env` dentro de `backend/` com:
+Crie um arquivo `.env` em `backend/` com:
 
 ```env
+DATABASE_URL=postgresql://usuario:senha@host:porta/banco
 GROQ_API_KEY=sua_chave_groq
-DATABASE_URL=postgresql://usuario:senha@host:porta/nome_do_banco
+JWT_SECRET=uma_string_aleatoria_bem_longa
+FRONTEND_ORIGINS=http://localhost:3000
 ```
 
-Rode as migrations do banco:
+Rode as migrações e suba o servidor:
 
 ```bash
 alembic upgrade head
-```
-
-Inicie a API:
-
-```bash
 uvicorn app.main:app --reload
 ```
 
-A API sobe por padrão em `http://localhost:8000`.
+A API sobe em `http://localhost:8000` (docs interativas em `/docs`).
 
-### 3. Configurar o Frontend
+### 3. Frontend
 
 ```bash
 cd ../frontend
 npm install
 ```
 
-> ⚠️ Atualmente as chamadas à API estão apontando para a URL de produção no Render (`https://mock-interviewer-backend-wxdn.onrender.com`). Para rodar o backend localmente, atualize as URLs em `src/app/page.tsx` para `http://localhost:8000` ou configure-as via variável de ambiente.
+Crie um arquivo `.env.local` em `frontend/` com:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
 
 ```bash
 npm run dev
 ```
 
-A aplicação sobe em `http://localhost:3000`.
+Acesse `http://localhost:3000`.
 
 ---
 
-## 📡 Endpoints da API
+## 🚀 Deploy
 
-| Método | Rota                        | Descrição                                                   |
-|--------|-----------------------------|----------------------------------------------------------------|
-| `POST` | `/api/audio/transcribe`     | Recebe um arquivo de áudio e retorna a transcrição em texto.   |
-| `POST` | `/api/interview/analyze`    | Recebe a transcrição e a vaga, retorna feedback + próxima pergunta. |
-| `POST` | `/api/audio/tts`            | Converte um texto em áudio (mp3) narrado por voz sintética.    |
-| `GET`  | `/api/interview/history`    | Retorna o histórico de turnos de entrevista salvos no banco.   |
+- **Frontend**: deploy automático na Vercel a cada push na branch principal. Variável de ambiente necessária: `NEXT_PUBLIC_API_URL` apontando para a URL do backend em produção.
+- **Backend**: deploy automático no Render. Variáveis de ambiente necessárias: `DATABASE_URL`, `GROQ_API_KEY`, `JWT_SECRET`, `FRONTEND_ORIGINS` (URL do frontend na Vercel).
+- **Banco**: PostgreSQL gerenciado pelo Render. Após qualquer alteração de schema, rodar `alembic upgrade head` apontando para a `DATABASE_URL` de produção.
 
 ---
 
-## 📈 Deploy
+## 🔐 Notas de segurança
 
-O projeto está preparado para deploy contínuo:
-
-- **Frontend:** deploy automático na [Vercel](https://vercel.com/), conectado ao GitHub.
-- **Backend:** deploy configurado no [Render](https://render.com/).
+- Senhas nunca são armazenadas em texto plano — usa hash bcrypt.
+- Autenticação via JWT com expiração de 7 dias.
+- CORS restrito às origens definidas em `FRONTEND_ORIGINS` (não usa `*` em produção, já que as requisições carregam credenciais).
+- Histórico e sessões de entrevista são sempre filtrados pelo `user_id` do token — um usuário nunca acessa dados de outro.
 
 ---
 
-## 🗺️ Roadmap / Possíveis melhorias
+## 🗺️ Roadmap / próximos passos
 
-- [ ] Autenticação de usuários (histórico por conta)
-- [ ] Suporte a múltiplos idiomas
-- [ ] Avaliação de sentimento/tom de voz na resposta
-- [ ] Relatório final de desempenho ao fim da entrevista
+- [ ] Recuperação de senha por e-mail
+- [ ] Suporte a currículo em `.docx`
+- [ ] Limite de duração da gravação de áudio
+- [ ] Migrar parsing de resposta da IA (`feedback | pergunta`) para structured output (JSON)
 - [ ] Testes automatizados (backend e frontend)
 
 ---
 
-## 🤝 Contribuindo
+## 🤝 Contribuição
 
-Contribuições são muito bem-vindas!
-
-1. Faça um fork do projeto
-2. Crie uma branch para sua feature (`git checkout -b feature/nova-funcionalidade`)
-3. Commit suas mudanças (`git commit -m 'feat: adiciona nova funcionalidade'`)
-4. Push para a branch (`git push origin feature/nova-funcionalidade`)
-5. Abra um Pull Request
-
-Sinta-se à vontade também para abrir uma [Issue](../../issues) relatando bugs ou sugerindo melhorias.
-
----
+Contribuições são bem-vindas! Abra uma *issue* ou envie um *pull request*.
 
 ## 📄 Licença
 
-Este projeto está sob a licença MIT. Veja o arquivo `LICENSE` para mais detalhes.
-
----
-
-<p align="center">Feito com 💙 por <a href="https://github.com/RafaCCruz">RafaCCruz</a></p>
+Este projeto está disponível sob a licença MIT.
